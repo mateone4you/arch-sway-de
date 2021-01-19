@@ -1,0 +1,466 @@
+---
+- name: Installing Sway desktop environment
+  hosts: 127.0.0.1
+  strategy: linear
+  connection: local
+
+  vars:
+    SWAY_DIR: "{{ ansible_user_dir }}/.config/sway"
+    BIN_DIR: "{{ ansible_user_dir }}/.local/bin"
+    ROOT_BIN_DIR: "/root/.local/bin"
+    SYSTEMD_UDIR: "{{ ansible_user_dir }}/.config/systemd/user"
+    STARSHIP_OPTIONS:
+      - { section: null, option: add_newline, value: "false" }
+      - { section: character, option: symbol, value: '"➜"' }
+      - { section: character, option: style_failure, value: '"bold #ee4e4e"' }
+      - { section: cmd_duration, option: disabled, value: "true" }
+      - { section: line_break, option: disabled, value: "true" }
+    HOWTO: |
+      After a reboot you can start Sway by entering "sway" on the console or let it automatically start after login via the following entry at the beginning of your ~/.bashrc:
+      if [[ -z $DISPLAY ]] && [[ $(tty) = /dev/tty1 ]]; then
+        exec sway
+      fi
+      Also don't forget to set environment variables. Take a look at the README.md file.
+
+  tasks:
+    - name: Common | Getting Pictures directory
+      shell: xdg-user-dir PICTURES
+      register: XDG_OUTPUT
+      when: not ansible_check_mode
+
+    - name: Common | Setting User Picture directory fact
+      set_fact: USER_PICTURE_DIR={{ XDG_OUTPUT.stdout }}
+      when: not ansible_check_mode
+
+    - name: Common | Setting USER_PICTURE_DIR for check_mode
+      set_fact: USER_PICTURE_DIR="{{ ansible_user_dir }}/Pictures"
+      when: ansible_check_mode
+
+    - name: Arch | Root Tasks
+      block:
+        - name: Arch | Installing required software
+          pacman:
+            name:
+              - alacritty
+              - antiword
+              - bemenu
+              - bemenu-wlroots
+              - blueman
+              #- cdrtools
+              - docx2txt
+              - ffmpeg
+              - gammastep
+              #- gnome-power-manager
+              - grim
+              - highlight
+              - imagemagick
+              - jq
+              - kanshi
+              - libpipewire02
+              - lsd
+              - mako
+              - ncmpcpp
+              #- network-manager-applet
+              - noto-fonts-emoji
+              - odt2txt
+              - otf-font-awesome
+              - pavucontrol
+              - pcmanfm-gtk3
+              - perl-image-exiftool
+              - playerctl
+              - polkit-gnome
+              - qt5-wayland
+              - rsync
+              - slurp
+              - sway
+              - swayidle
+              - terminus-font
+              - ttf-dejavu
+              - udiskie
+              - waybar
+              - wf-recorder
+            state: latest
+            update_cache: true
+
+        #- name: Arch | Removing software
+        #  pacman:
+        #    name:
+        #      - firefox
+        #    state: absent
+
+        - name: Arch | Making sure file ~/.gnupg/gpg.conf exists for user aur_builder
+          copy:
+            content: ""
+            dest: "~/.gnupg/gpg.conf"
+            force: false
+            group: aur_builder
+            owner: aur_builder
+            mode: "0640"
+          become_user: aur_builder
+
+        - name: Arch | Adding gpg keyserver for user aur_builder
+          lineinfile:
+            path: "~/.gnupg/gpg.conf"
+            regexp: "^keyserver hkp.*"
+            line: keyserver pool.sks-keyservers.net
+            owner: aur_builder
+            group: aur_builder
+            mode: "0640"
+          become_user: aur_builder
+
+        - name: Arch | Installing required software from aur
+          aur:
+            name:
+              - archivemount
+              - autotiling
+              - avizo
+              - bemenu-dmenu
+              - edir
+              #- fedora-firefox-wayland-bin
+              - glow-bin
+              - j4-dmenu-desktop
+              - lf
+              - otf-font-awesome-4
+              - remontoire-git
+              - swappy
+              - starship-bin
+              - swaylock-effects-git
+              - ttf-font-awesome-4
+              - wl-clipboard-git
+              # - wl-clipboard-x11
+              - wshowkeys-git
+              - xdg-desktop-portal-wlr
+            state: latest
+            use: yay
+            extra_args: --pgpfetch
+          become_user: aur_builder
+          vars:
+            mitogen_task_isolation: fork
+      when: ansible_distribution == 'Archlinux'
+      become: true
+
+    - name: Common | Creating directories...
+      file:
+        owner: "{{ ansible_user_id }}"
+        group: "{{ ansible_user_id }}"
+        mode: "0750"
+        path: "{{ item }}"
+        state: directory
+      with_items:
+        - "{{ SWAY_DIR }}"
+        - "{{ SWAY_DIR }}/{{ ansible_hostname }}"
+        - "{{ BIN_DIR }}"
+        - "{{ BIN_DIR }}/bash"
+        - "{{ SYSTEMD_UDIR }}"
+        - "{{ ansible_user_dir }}/.config/mako"
+        - "{{ ansible_user_dir }}/.config/kanshi"
+        - "{{ ansible_user_dir }}/.config/swappy"
+        - "{{ ansible_user_dir }}/.config/lf"
+        - "{{ ansible_user_dir }}/.config/alacritty"
+        - "{{ ansible_user_dir }}/.config/wget"
+        - "{{ ansible_user_dir }}/.local/share/themes/Windows-10"
+        - "{{ ansible_user_dir }}/.local/share/icons/Windows-10"
+        - "{{ USER_PICTURE_DIR }}/screenshots"
+
+    - name: Common | Ensure wgetrc exists
+      copy:
+        content: ""
+        dest: "{{ ansible_user_dir }}/.config/wget/wgetrc"
+        force: false
+        group: "{{ ansible_user_id }}"
+        owner: "{{ ansible_user_id }}"
+        mode: "0640"
+
+    - name: Common | Creating config symlinks...
+      file:
+        owner: "{{ ansible_user_id }}"
+        group: "{{ ansible_user_id }}"
+        mode: "{{ item.mode }}"
+        src: "{{ item.src }}"
+        dest: "{{ item.dest }}"
+        state: link
+      with_items:
+        - {
+            src: "{{ playbook_dir }}/config/sway/sway.conf",
+            dest: "{{ SWAY_DIR }}/config",
+            mode: "0640",
+          }
+        - {
+            src: "{{ playbook_dir }}/config/sway/sway.d",
+            dest: "{{ SWAY_DIR }}/sway.d",
+            mode: "0750",
+          }
+        - {
+            src: "{{ playbook_dir }}/config/mako/mako.conf",
+            dest: "{{ ansible_user_dir }}/.config/mako/config",
+            mode: "0640",
+          }
+        - {
+            src: "{{ playbook_dir }}/config/waybar",
+            dest: "{{ ansible_user_dir }}/.config/waybar",
+            mode: "0750",
+          }
+        - {
+            src: "{{ playbook_dir }}/config/kanshi/config.example",
+            dest: "{{ ansible_user_dir }}/.config/kanshi/config.example",
+            mode: "0640",
+          }
+        - {
+            src: "{{ playbook_dir }}/config/swappy/config",
+            dest: "{{ ansible_user_dir }}/.config/swappy/config",
+            mode: "0640",
+          }
+        - {
+            src: "{{ playbook_dir }}/config/lf/lfrc",
+            dest: "{{ ansible_user_dir }}/.config/lf/lfrc",
+            mode: "0640",
+          }
+        - {
+            src: "{{ playbook_dir }}/config/alacritty/alacritty.yml",
+            dest: "{{ ansible_user_dir }}/.config/alacritty/alacritty.yml",
+            mode: "0640",
+          }
+
+    - name: Common | Creating shell script symlinks...
+      file:
+        owner: "{{ ansible_user_id }}"
+        group: "{{ ansible_user_id }}"
+        mode: "0750"
+        src: "{{ item }}"
+        dest: "{{ BIN_DIR }}/{{ item | basename }}"
+        state: link
+      with_fileglob:
+        - "{{ playbook_dir }}/bin/*.sh"
+        - "{{ playbook_dir }}/bin/emoji"
+        - "{{ playbook_dir }}/bin/steam"
+
+    - name: Common | Templating custom bashrc...
+      template:
+        owner: "{{ ansible_user_id }}"
+        group: "{{ ansible_user_id }}"
+        mode: "0750"
+        src: "{{ item.src }}"
+        dest: "{{ item.dest }}"
+      with_items:
+        - {
+            src: "{{ playbook_dir }}/config/bash/bashrc.j2",
+            dest: "{{ BIN_DIR }}/bash/sway-de.sh",
+          }
+
+    - name: Common | Templating systemd user units...
+      template:
+        src: "{{ item }}"
+        dest: "{{ SYSTEMD_UDIR }}/{{ item | basename | regex_replace('.j2$', '') }}"
+        mode: "0640"
+      with_fileglob:
+        - "{{ playbook_dir }}/config/systemd/user/*.j2"
+      register: systemd_user_units
+
+    - name: Common | Enabling systemd user units...
+      systemd:
+        name: "{{ item }}"
+        enabled: true
+        daemon_reload: true
+        scope: user
+      with_items:
+        - autotiling
+        - avizo-service
+        - inactive-windows-transparency
+        # - gammastep
+        - kanshi
+        - mako
+        - polkit-gnome
+        - ssh-agent
+        - swayidle
+        - udiskie
+        - waybar
+
+    - name: Common | Reloading systemd user units when changed...
+      systemd:
+        daemon_reload: true
+        scope: user
+      when: systemd_user_units.changed
+
+    - name: Common | Cloning Windows-10 themes and icons...
+      git:
+        repo: "{{ item.src }}"
+        dest: "{{ item.dest }}"
+        update: true
+      with_items:
+        - {
+            src: "https://github.com/B00merang-Project/Windows-10.git",
+            dest: "{{ ansible_user_dir }}/.local/share/themes/Windows-10",
+          }
+        - {
+            src: "https://github.com/B00merang-Artwork/Windows-10.git",
+            dest: "{{ ansible_user_dir }}/.local/share/icons/Windows-10",
+          }
+      diff: false
+
+    - name: Common | Extending user .bashrc...
+      blockinfile:
+        owner: "{{ ansible_user_id }}"
+        group: "{{ ansible_user_id }}"
+        mode: "0640"
+        dest: "{{ ansible_user_dir }}/.bashrc"
+        block: "for f in {{ BIN_DIR }}/bash/*.sh; do source $f; done"
+        marker: "
+          # {mark} Sway desktop environment config"
+        insertafter: EOF
+        create: true
+
+    - name: Common | Creating root directories...
+      file:
+        owner: root
+        group: root
+        mode: "0750"
+        path: "{{ item }}"
+        state: directory
+      with_items:
+        - "{{ ROOT_BIN_DIR }}/bash"
+      become: true
+
+    - name: Common | Extending root .profile...
+      blockinfile:
+        dest: "/root/.profile"
+        block: "for f in {{ ROOT_BIN_DIR }}/bash/*.sh; do source $f; done"
+        marker: "
+          # {mark} Sway desktop environment config"
+        insertafter: EOF
+        create: true
+      become: true
+
+    - name: Common | Templating root bashrc files...
+      template:
+        src: "{{ item.src }}"
+        dest: "{{ item.dest }}"
+      with_items:
+        - {
+            src: "{{ playbook_dir }}/config/bash/bashrc.j2",
+            dest: "{{ ROOT_BIN_DIR }}/bash/sway-de.sh",
+          }
+      become: true
+
+    - name: Common | Configuring {{ ansible_user_dir }}/.config/gtk-3.0/settings.ini
+      ini_file:
+        path: "{{ ansible_user_dir }}/.config/gtk-3.0/settings.ini"
+        section: Settings
+        option: "{{ item.option }}"
+        value: "{{ item.value }}"
+      with_items:
+        - { option: "gtk-theme-name", value: "Windows-10" }
+        - { option: "gtk-icon-theme-name", value: "Windows-10" }
+
+    - name: Common | Configuring {{ ansible_user_dir }}/.config/gtk-2.0/gtkrc-2.0
+      ini_file:
+        path: "{{ ansible_user_dir }}/.config/gtk-2.0/gtkrc-2.0"
+        section: null
+        option: "{{ item.option }}"
+        value: "{{ item.value }}"
+      with_items:
+        - { option: "gtk-theme-name", value: '"Windows-10"' }
+        - { option: "gtk-icon-theme-name", value: '"Windows-10"' }
+
+    # {{ ansible_user_dir }}/.pam_environment is the most compatible way
+    # to set enviromment variables.
+    #
+    # If it's possible to import environment variables from
+    # {{ ansible_user_dir }}/.config/environment.d/sway-de.conf
+    # into the login session, I would prefer that way
+    - name: Common | Configuring {{ ansible_user_dir }}/.pam_environment
+      blockinfile:
+        dest: "{{ ansible_user_dir }}/.pam_environment"
+        block: |
+          # HOME variable
+          HOME DEFAULT=/home/@{PAM_USER}
+          # Path for cursor themes
+          XCURSOR_PATH DEFAULT=${HOME}/.local/share/icons
+
+          # Reduces crashs for some gdk apps, like evolution
+          # ! Do not set as global variable. Electron Apps will not start !
+          # GDK_BACKEND DEFAULT=wayland
+
+          # Required for tray icons on waybar
+          XDG_CURRENT_DESKTOP DEFAULT=sway
+
+          # Enable QT apps to have gtk theme
+          QT_QPA_PLATFORMTHEME DEFAULT=qt5ct
+
+          # Force wayland on qt apps
+          QT_QPA_PLATFORM DEFAULT=wayland-egl
+          QT_WAYLAND_DISABLE_WINDOWDECORATION DEFAULT=1
+          # Explicitly set to '96' instead of 'physical' because some apps have problems
+          # Looking at you nextcloud client!
+          # https://github.com/nextcloud/desktop/issues/1079
+          # https://github.com/swaywm/sway/issues/2424
+          QT_WAYLAND_FORCE_DPI DEFAULT=96
+
+          # Make Qt apps honour DPI settings.
+          QT_AUTO_SCREEN_SCALE_FACTOR DEFAULT=1
+
+          # Mozilla Wayland support + hardware video decoding
+          MOZ_ENABLE_WAYLAND DEFAULT=1
+          MOZ_WAYLAND_USE_VAAPI=1
+
+          # SDL
+          SDL_VIDEODRIVER DEFAULT=wayland
+
+          # Java under Xwayland
+          _JAVA_AWT_WM_NONREPARENTING DEFAULT=1
+
+          # Path to SSH_AUTH_SOCK
+          SSH_AUTH_SOCK DEFAULT=${HOME}/.ssh/ssh-agent.sock
+
+          # XDG Settings
+          XDG_CONFIG_HOME DEFAULT=${HOME}/.config
+          XDG_DATA_HOME DEFAULT=${HOME}/.local/share
+          XDG_CACHE_HOME DEFAULT=${HOME}/.local/cache
+          GTK2_RC_FILES DEFAULT=${XDG_CONFIG_HOME}/gtk-2.0/gtkrc-2.0
+          LESSHISTFILE DEFAULT=-
+          WGETRC DEFAULT=${XDG_CONFIG_HOME}/wget/wgetrc
+          WINEPREFIX DEFAULT=${XDG_DATA_HOME}/wineprefixes/default
+          CARGO_HOME DEFAULT=${XDG_DATA_HOME}/cargo
+          GOPATH DEFAULT=${XDG_DATA_HOME}/go
+          HISTFILE DEFAULT=${XDG_DATA_HOME}/history
+          NOTMUCH_CONFIG DEFAULT=${XDG_CONFIG_HOME}/notmuch-config
+          AWS_SHARED_CREDENTIALS_FILE DEFAULT=${XDG_CONFIG_HOME}/aws/credentials
+          AWS_CONFIG_FILE DEFAULT=${XDG_CONFIG_HOME}/aws/config
+          DOCKER_CONFIG DEFAULT=${XDG_CONFIG_HOME}/docker
+          KUBECONFIG DEFAULT=${XDG_CONFIG_HOME}/kube/config
+          KIMAI_CONFIG DEFAULT=${XDG_CONFIG_HOME}/kimai2/settings.ini
+
+          # Include {{ BIN_DIR }} and ${GOPATH}/bin in $PATH
+          PATH DEFAULT={{ BIN_DIR }}:${GOPATH}/bin:${PATH}
+
+          # Bemenu
+          BEMENU_BACKEND DEFAULT=wayland
+
+          # Session Type for later screensharing
+          XDG_SESSION_TYPE DEFAULT=wayland
+        marker: "
+          # {mark} Sway desktop environment config"
+        insertafter: EOF
+        create: true
+
+    - name: Common | Configuring {{ ansible_user_dir }}/.config/starship.toml
+      ini_file:
+        path: "{{ ansible_user_dir }}/.config/starship.toml"
+        section: "{{ item.section }}"
+        option: "{{ item.option }}"
+        value: "{{ item.value }}"
+      with_items:
+        - "{{ STARSHIP_OPTIONS }}"
+
+    - name: Common | Configuring /root/.config/starship.toml
+      ini_file:
+        path: "/root/.config/starship.toml"
+        section: "{{ item.section }}"
+        option: "{{ item.option }}"
+        value: "{{ item.value }}"
+      with_items:
+        - "{{ STARSHIP_OPTIONS }}"
+      become: true
+
+    - name: Common | Informational Output
+      debug:
+        msg: "{{ HOWTO.split('\n') }}"
