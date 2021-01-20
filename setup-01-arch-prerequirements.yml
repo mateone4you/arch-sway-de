@@ -26,6 +26,14 @@
             name: aur_builder
           become: true
 
+        - name: Arch | Installing software
+          pacman:
+            name:
+              - xdg-user-dirs
+            state: installed
+            update_cache: true
+          become: true
+
         - name: Common | Allow user aur_builder to use pacman
           lineinfile:
             path: /etc/sudoers.d/aur_builder
@@ -35,11 +43,3 @@
             create: true
           become: true
       when: ansible_distribution == 'Archlinux'
-
-        - name: Arch | Installing software
-          pacman:
-            name:
-              - xdg-user-dirs
-            state: installed
-            update_cache: true
-          become: true

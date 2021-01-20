@@ -41,7 +41,7 @@
         - name: Arch | Installing required software
           pacman:
             name:
-              - alacritty
+              - termite
               - antiword
               - bemenu
               - bemenu-wlroots
@@ -82,11 +82,11 @@
             state: latest
             update_cache: true
 
-        #- name: Arch | Removing software
-        #  pacman:
-        #    name:
-        #      - firefox
-        #    state: absent
+        - name: Arch | Removing software
+          pacman:
+            name:
+              - alacritty
+            state: absent
 
         - name: Arch | Making sure file ~/.gnupg/gpg.conf exists for user aur_builder
           copy:
@@ -95,7 +95,7 @@
             force: false
             group: aur_builder
             owner: aur_builder
-            mode: "0640"
+            mode: "0700"
           become_user: aur_builder
 
         - name: Arch | Adding gpg keyserver for user aur_builder
@@ -117,13 +117,14 @@
               - bemenu-dmenu
               - edir
               #- fedora-firefox-wayland-bin
-              - glow-bin
+              - gotop
+              - glow
               - j4-dmenu-desktop
               - lf
               - otf-font-awesome-4
               - remontoire-git
               - swappy
-              - starship-bin
+              - starship
               - swaylock-effects-git
               - ttf-font-awesome-4
               - wl-clipboard-git
@@ -156,7 +157,7 @@
         - "{{ ansible_user_dir }}/.config/kanshi"
         - "{{ ansible_user_dir }}/.config/swappy"
         - "{{ ansible_user_dir }}/.config/lf"
-        - "{{ ansible_user_dir }}/.config/alacritty"
+        #- "{{ ansible_user_dir }}/.config/alacritty"
         - "{{ ansible_user_dir }}/.config/wget"
         - "{{ ansible_user_dir }}/.local/share/themes/Windows-10"
         - "{{ ansible_user_dir }}/.local/share/icons/Windows-10"
@@ -215,11 +216,11 @@
             dest: "{{ ansible_user_dir }}/.config/lf/lfrc",
             mode: "0640",
           }
-        - {
-            src: "{{ playbook_dir }}/config/alacritty/alacritty.yml",
-            dest: "{{ ansible_user_dir }}/.config/alacritty/alacritty.yml",
-            mode: "0640",
-          }
+        #- {
+        #    src: "{{ playbook_dir }}/config/alacritty/alacritty.yml",
+        #    dest: "{{ ansible_user_dir }}/.config/alacritty/alacritty.yml",
+        #    mode: "0640",
+        #  }
 
     - name: Common | Creating shell script symlinks...
       file:
