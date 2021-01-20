@@ -50,6 +50,7 @@
               - docx2txt
               - ffmpeg
               - gammastep
+              - geany
               #- gnome-power-manager
               - grim
               - highlight
